@@ -1,8 +1,14 @@
 const express = require('express');
 const app = express();
+const morgan = require("morgan");
 const cors = require('cors');
 const Blog = require('./module/blog');
-require('dotenv').config();
+// const middleware = require("./utils/middleware");
+const config = require("./utils/config");
+const logger = require("./utils/logger");
+const blogsRouter = require("./controllers/blog");
+
+
 
 
 const requestLogger = (request, response, next) => {
@@ -18,8 +24,11 @@ const unknownEndpoint = (request, response) => {
 }
 
 app.use(express.json())
-app.use(requestLogger)
 app.use(cors())
+app.use(requestLogger)
+app.use('/api/bloglist', blogsRouter)
+
+
 
 
 
@@ -106,8 +115,28 @@ app.get('/api/bloglist/:id', (request, response, next) => {
       })
   })
 
+
+  app.put('/:id', (request, response, next) =>{
+    const body = request.body
+
+    const blog = new Blog({
+        title: body.title,
+        author: body.author,
+        url: body.url,
+        likes: body.likes
+  })
+
+  Blog.findByIdAndUpdate(request.params.id, blog, { new: true })
+  .then(updatedBlog => {
+    response.json(updatedBlog)
+  })
+  .catch(error => next(error))
+
+})
+
   app.use(unknownEndpoint)
 
-  const PORT = process.env.PORT
-  app.listen(PORT)
-  console.log(`Server running on port ${PORT}`)
+
+  app.listen(config.PORT, () => {
+    logger.info(`Server running on port ${config.PORT}`)
+  })
