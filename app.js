@@ -7,6 +7,8 @@ const Blog = require('./models/blog');
 const config = require("./utils/config");
 const logger = require("./utils/logger");
 const blogsRouter = require("./controllers/blog");
+const usersRouter = require('./controllers/users');
+
 
 
 
@@ -27,6 +29,8 @@ app.use(express.json())
 app.use(cors())
 app.use(requestLogger)
 app.use('/api/bloglist', blogsRouter)
+app.use('/api/users', usersRouter)
+
 
 
 
