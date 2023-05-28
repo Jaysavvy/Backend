@@ -8,7 +8,9 @@ const config = require("./utils/config");
 const logger = require("./utils/logger");
 const blogsRouter = require("./controllers/blog");
 const usersRouter = require('./controllers/users');
-
+const loginRouter = require('./controllers/login')
+const User = require("./models/user");
+const jwt = require('jsonwebtoken')
 
 
 
@@ -30,113 +32,103 @@ app.use(cors())
 app.use(requestLogger)
 app.use('/api/bloglist', blogsRouter)
 app.use('/api/users', usersRouter)
+app.use('/api/login', loginRouter)
 
 
 
 
 
 
-// let Bloglist = [
-//     {
-//       id: 1,
-//       title: "Saving the whales",
-//       author: "James Macvoy",
-//       URL: "https://blog.padi.com/save-the-whales-save-the-world/",
-//       likes: 37
-//     },
-//     {
-//         id: 2,
-//         title: "Magic card gatherings",
-//         author: "Peter dunking",
-//         URL: "https://magic.wizards.com/en/news/feature/march-of-the-machine-the-aftermath-release-notes",
-//         likes: 20
-//       },
-//       {
-//         id: 3,
-//         title: "drinking to much coffee",
-//         author: "Tom winkler",
-//         URL: "https://www.healthline.com/nutrition/caffeine-side-effects",
-//         likes: 100
-//       }  
-//   ]
 
   app.get('/', (request, response) => {
   response.send('<h1>Hello World!</h1>')
 })
 
-app.get('/api/bloglist', (request, response) => {
-  Blog
-    .find({})
-    .then(blogs => {
-      response.json(blogs)
-    })
-})
-
-app.get('/api/bloglist/:id', (request, response, next) => {
-  Blog.findById(request.params.id)
-      .then((blog) => {
-        if (blog) {
-          response.json(blog);
-        } else {
-          response.status(404).end();
-        }
-      })
+const getTokenFrom = request => {
+  const authorization = request.get('authorization')
+  if (authorization && authorization.startsWith('Bearer ')) {
+    return authorization.replace('Bearer ', '')
+  }
+  return null
+}
   
-      .catch((error) => next(error));
-  })
-
-  app.delete('/api/bloglist/:id', (request, response) => {
-    Blog.findByIdAndRemove(request.params.id)
-      .then(()=>{
-        response.status(204).end();
-      })
-
-      .catch((error) => error)
-  });
-
-  // const generateId = () => {
-  //   const maxId = Bloglist.length > 0
-  //   ? Math.max(...Bloglist.map(n => n.id)) 
-  //   : 0
-  //   return maxId + 1
-  // }
-
-  app.post('/api/bloglist', (request, response) => {
-    const body = request.body
-
-    const blog = new Blog({
-      title: body.title,
-      author: body.author,
-      url: body.url,
-      likes: body.likes
-})
-
-
-    blog
-      .save()
-      .then(result => {
-        response.status(201).json(result)
+  app.get('/api/bloglist', async (request, response) => {
+    const blogs = await Blog
+      .find({})
+      .then(blogs => {
+        response.json(blogs)
       })
   })
-
-
-  app.put('/:id', (request, response, next) =>{
-    const body = request.body
-
-    const blog = new Blog({
+  
+  app.get('/api/bloglist/:id', async (request, response, next) => {
+    
+    const blog = await Blog.findById(request.params.id)
+        .then((blog) => {
+          if (blog) {
+            response.json(blog);
+          } else {
+            response.status(404).end();
+          }
+        })
+    
+        .catch((error) => next(error));
+    })
+  
+    app.delete('/api/bloglist/:id', async (request, response) => {
+      await Blog.findByIdAndRemove(request.params.id)
+        .then(()=>{
+          response.status(204).end();
+        })
+  
+        .catch((error) => error)
+    });
+  
+  
+    app.post('/api/bloglist', async (request, response) => {
+    
+  const body = request.body
+  const decodedToken = jwt.verify(getTokenFrom(request), process.env.SECRET)
+  
+  if (!decodedToken.id) {
+    return response.status(401).json({ error: 'token invalid' })
+  }
+  const user = await User.findById(decodedToken.id)
+  
+      const blog = new Blog({
         title: body.title,
         author: body.author,
         url: body.url,
-        likes: body.likes
+        likes: body.likes,
+        user: user._id
   })
+  
+  
+  const savedBlog = await blog.save()
+  
+  user.blogs = user.blogs.concat(savedBlog._id)
+  await user.save()
+  
+  response.json(savedBlog)
+    })
+  
 
-  Blog.findByIdAndUpdate(request.params.id, blog, { new: true })
-  .then(updatedBlog => {
-    response.json(updatedBlog)
-  })
-  .catch(error => next(error))
+    app.put('/:id', (request, response, next) =>{
+        const body = request.body
 
-})
+        const blog = new Blog({
+            title: body.title,
+            author: body.author,
+            url: body.url,
+            likes: body.likes
+      })
+
+      app.findByIdAndUpdate(request.params.id, blog, { new: true })
+      .then(updatedNote => {
+        response.json(updatedNote)
+      })
+      .catch(error => next(error))
+
+    })
 
   app.use(unknownEndpoint)
 
